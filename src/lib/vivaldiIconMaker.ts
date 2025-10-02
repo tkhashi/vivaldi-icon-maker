@@ -21,9 +21,9 @@ export interface IconVariant {
   backgroundColor?: string;
 }
 
-const DEFAULT_INACTIVE_MIX = 0.5;
-const DEFAULT_CORNER_RADIUS = 6;
-const DEFAULT_INSET_RATIO = 0.1;
+export const DEFAULT_INACTIVE_MIX = 0.5;
+export const DEFAULT_INACTIVE_CORNER_RADIUS = 6;
+export const DEFAULT_INACTIVE_INSET_RATIO = 0.1;
 const INACTIVE_BACKGROUND_MARKER = "data-vivaldi-inactive-bg=\"true\"";
 
 export function generateIconVariants(options: GenerateVariantsOptions): IconVariant[] {
@@ -35,12 +35,16 @@ export function generateIconVariants(options: GenerateVariantsOptions): IconVari
     preserveStrokeNone = true,
     generateInactive = true,
     inactiveMix = DEFAULT_INACTIVE_MIX,
-    inactiveCornerRadius = DEFAULT_CORNER_RADIUS,
-    inactiveBackgroundInsetRatio = DEFAULT_INSET_RATIO,
+    inactiveCornerRadius = DEFAULT_INACTIVE_CORNER_RADIUS,
+    inactiveBackgroundInsetRatio = DEFAULT_INACTIVE_INSET_RATIO,
   } = options;
+
+  ensureValidSvg(svgContent);
 
   const variants: IconVariant[] = [];
   const primaryColor = pickPrimaryColor(fill, stroke);
+  const normalizedInactiveMix = clampUnitRange(inactiveMix);
+  const safeCornerRadius = Math.max(0, inactiveCornerRadius);
 
   const activeSvg = recolorVivaldiSvg(svgContent, {
     fill,
@@ -57,10 +61,10 @@ export function generateIconVariants(options: GenerateVariantsOptions): IconVari
   });
 
   if (generateInactive) {
-    const inactiveFill = transformInactiveColor(fill, inactiveMix);
-    const inactiveStroke = transformInactiveColor(stroke, inactiveMix);
+    const inactiveFill = transformInactiveColor(fill, normalizedInactiveMix);
+    const inactiveStroke = transformInactiveColor(stroke, normalizedInactiveMix);
     const backgroundColor = primaryColor
-      ? createInactiveBackgroundColor(primaryColor, inactiveMix)
+      ? createInactiveBackgroundColor(primaryColor, normalizedInactiveMix)
       : undefined;
 
     let inactiveSvg = recolorVivaldiSvg(svgContent, {
@@ -74,7 +78,7 @@ export function generateIconVariants(options: GenerateVariantsOptions): IconVari
       inactiveSvg = addOrUpdateBackgroundRect(
         inactiveSvg,
         backgroundColor,
-        inactiveCornerRadius,
+        safeCornerRadius,
         inactiveBackgroundInsetRatio,
       );
     }
@@ -118,11 +122,24 @@ export function addOrUpdateBackgroundRect(
   return svgContent.replace(svgOpenTag, replacement);
 }
 
+function ensureValidSvg(content: string): void {
+  if (!content || !content.includes("<svg")) {
+    throw new Error("有効な SVG コンテンツを指定してください。");
+  }
+}
+
 function transformInactiveColor(color: string | undefined, mix: number): string | undefined {
   if (!color || color.trim().toLowerCase() === "none") {
     return color;
   }
   return createInactiveColor(color, mix);
+}
+
+function clampUnitRange(value: number): number {
+  if (Number.isNaN(value)) {
+    return DEFAULT_INACTIVE_MIX;
+  }
+  return Math.min(Math.max(value, 0), 1);
 }
 
 function pickPrimaryColor(fill?: string, stroke?: string): string | undefined {

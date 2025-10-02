@@ -1,5 +1,10 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { generateIconVariants, IconVariant } from "../lib/vivaldiIconMaker.js";
+import {
+  DEFAULT_INACTIVE_CORNER_RADIUS,
+  DEFAULT_INACTIVE_MIX,
+  generateIconVariants,
+  IconVariant,
+} from "../lib/vivaldiIconMaker.js";
 import { validateColorInput } from "../lib/svgColorizer.js";
 import blackPreset from "../../vivaldi-black.svg?raw";
 import linePreset from "../../vivaldi-line.svg?raw";
@@ -12,7 +17,6 @@ interface DownloadMap {
 }
 
 const DEFAULT_FILL = "#ff0000";
-const DEFAULT_INACTIVE_MIX = 0.5;
 
 function App(): JSX.Element {
   const [preset, setPreset] = useState<Preset>("black");
@@ -20,6 +24,10 @@ function App(): JSX.Element {
   const [fill, setFill] = useState<string>(DEFAULT_FILL);
   const [stroke, setStroke] = useState<string>("");
   const [inactiveMix, setInactiveMix] = useState<number>(DEFAULT_INACTIVE_MIX);
+  const [inactiveCornerRadius, setInactiveCornerRadius] = useState<number>(
+    DEFAULT_INACTIVE_CORNER_RADIUS,
+  );
+  const [generateInactive, setGenerateInactive] = useState<boolean>(true);
   const [variants, setVariants] = useState<IconVariant[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +59,8 @@ function App(): JSX.Element {
         fill: normalizedFill,
         stroke: normalizedStroke,
         inactiveMix,
+        generateInactive,
+        inactiveCornerRadius,
       });
 
       setVariants(created);
@@ -59,7 +69,7 @@ function App(): JSX.Element {
       setVariants([]);
       setError(e instanceof Error ? e.message : "未知のエラーが発生しました");
     }
-  }, [fill, stroke, inactiveMix, svgContent, preset]);
+  }, [fill, stroke, inactiveMix, svgContent, preset, generateInactive, inactiveCornerRadius]);
 
   const downloadUrls = useMemo<DownloadMap>(() => {
     const map: DownloadMap = {};
@@ -150,6 +160,18 @@ function App(): JSX.Element {
           <p className="helper">空欄でストローク無し。</p>
         </div>
 
+        <div className="field-group toggle-field">
+          <label htmlFor="generateInactive" className="toggle-label">
+            <input
+              id="generateInactive"
+              type="checkbox"
+              checked={generateInactive}
+              onChange={(event) => setGenerateInactive(event.target.checked)}
+            />
+            <span>非活性アイコンを生成</span>
+          </label>
+        </div>
+
         <div className="field-group">
           <label htmlFor="inactiveMix">非活性強度: {inactiveMix.toFixed(2)}</label>
           <input
@@ -160,6 +182,23 @@ function App(): JSX.Element {
             step="0.05"
             value={inactiveMix}
             onChange={(event) => setInactiveMix(Number(event.target.value))}
+            disabled={!generateInactive}
+          />
+        </div>
+
+        <div className="field-group">
+          <label htmlFor="inactiveCornerRadius">
+            背景角丸: {inactiveCornerRadius.toFixed(0)}px
+          </label>
+          <input
+            id="inactiveCornerRadius"
+            type="range"
+            min="0"
+            max="16"
+            step="1"
+            value={inactiveCornerRadius}
+            onChange={(event) => setInactiveCornerRadius(Number(event.target.value))}
+            disabled={!generateInactive}
           />
         </div>
 
