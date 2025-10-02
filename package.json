@@ -1,0 +1,29 @@
+{
+  "name": "vivaldi-icon-maker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI tool to recolor Vivaldi SVG icons",
+  "main": "dist/index.js",
+  "bin": {
+    "vivaldi-icon-maker": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "vivaldi",
+    "svg",
+    "icon",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}
