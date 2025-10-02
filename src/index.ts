@@ -1,8 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createInactiveBackgroundColor, createInactiveColor } from "./colorTransforms.js";
-import { recolorVivaldiSvg, validateColorInput } from "./svgColorizer.js";
+import { generateIconVariants } from "./lib/vivaldiIconMaker.js";
+import { validateColorInput } from "./lib/svgColorizer.js";
 
 interface RawCliOptions {
   input?: string;
@@ -31,19 +31,9 @@ interface CliOptions {
   inactiveMix: number;
 }
 
-interface ColorVariant {
-  name: string;
-  fill?: string;
-  stroke?: string;
-  backgroundColor?: string;
-}
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const INACTIVE_BACKGROUND_MARKER = "data-vivaldi-inactive-bg=\"true\"";
-const INACTIVE_CORNER_RADIUS = 6;
-const INACTIVE_BACKGROUND_INSET_RATIO = 0.1;
 
 const ICON_PRESETS = {
   black: path.join(PROJECT_ROOT, "vivaldi-black.svg"),
@@ -55,30 +45,23 @@ async function main(): Promise<void> {
     const rawOptions = parseArgs(process.argv.slice(2));
     const options = await resolveOptions(rawOptions);
     const svgContent = await fs.readFile(options.inputPath, "utf8");
-    const variants = buildVariants(options);
+
+    const variants = generateIconVariants({
+      svgContent,
+      fill: options.fill,
+      stroke: options.stroke,
+      preserveFillNone: options.preserveFillNone,
+      preserveStrokeNone: options.preserveStrokeNone,
+      generateInactive: options.generateInactive,
+      inactiveMix: options.inactiveMix,
+    });
 
     await fs.mkdir(options.outputDir, { recursive: true });
 
     for (const variant of variants) {
-      let recolored = recolorVivaldiSvg(svgContent, {
-        fill: variant.fill,
-        stroke: variant.stroke,
-        preserveFillNone: options.preserveFillNone,
-        preserveStrokeNone: options.preserveStrokeNone,
-      });
-
-      if (variant.backgroundColor) {
-        recolored = addOrUpdateBackgroundRect(
-          recolored,
-          variant.backgroundColor,
-          INACTIVE_CORNER_RADIUS,
-        );
-      }
-
       const outputPath = buildOutputPath(options, variant.name);
       await ensureWritablePath(outputPath, options.overwrite);
-      await fs.writeFile(outputPath, recolored, "utf8");
-
+      await fs.writeFile(outputPath, variant.svg, "utf8");
       console.log(`Created ${path.relative(process.cwd(), outputPath)}`);
     }
   } catch (error) {
@@ -205,63 +188,6 @@ async function resolveInputPath(raw: RawCliOptions): Promise<string> {
   return resolved;
 }
 
-function buildVariants(options: CliOptions): ColorVariant[] {
-  const baseColor = pickPrimaryColor(options);
-  const variants: ColorVariant[] = [
-    {
-      name: "active",
-      fill: options.fill,
-      stroke: options.stroke,
-    },
-  ];
-
-  if (options.generateInactive) {
-    variants.push({
-      name: "inactive",
-      fill: transformInactiveColor(options.fill, options.inactiveMix),
-      stroke: transformInactiveColor(options.stroke, options.inactiveMix),
-      backgroundColor: baseColor
-        ? createInactiveBackgroundColor(baseColor, options.inactiveMix)
-        : undefined,
-    });
-  }
-
-  return variants;
-}
-
-function transformInactiveColor(color: string | undefined, mix: number): string | undefined {
-  if (!color || color.trim().toLowerCase() === "none") {
-    return color;
-  }
-  return createInactiveColor(color, mix);
-}
-
-function pickPrimaryColor(options: CliOptions): string | undefined {
-  const normalizedFill = normalizeColor(options.fill);
-  if (normalizedFill) {
-    return normalizedFill;
-  }
-
-  const normalizedStroke = normalizeColor(options.stroke);
-  if (normalizedStroke) {
-    return normalizedStroke;
-  }
-
-  return undefined;
-}
-
-function normalizeColor(color: string | undefined): string | undefined {
-  if (!color) {
-    return undefined;
-  }
-
-  if (color.trim().toLowerCase() === "none") {
-    return undefined;
-  }
-
-  return color;
-}
-
 function buildOutputPath(options: CliOptions, variantName: string): string {
   return path.join(
     options.outputDir,
@@ -278,6 +204,10 @@ function createSuffix(raw: RawCliOptions): string {
 
   if (raw.stroke) {
     parts.push(`stroke-${sanitizeForSuffix(raw.stroke)}`);
+  }
+
+  if (parts.length === 0) {
+    return "recolored";
   }
 
   return parts.join("-");
@@ -362,88 +292,6 @@ function printHelp(): void {
     `  --no-preserve-stroke-none      Allow replacing stroke declarations set to 'none'\n` +
     `  --no-inactive                  Skip generating the inactive icon variant\n` +
     `  --inactive-mix <0-1>           Strength of desaturation/lightening toward pastel (0 = subtle, 1 = very pale, default 0.5)`);
-}
-
-function addOrUpdateBackgroundRect(svgContent: string, color: string, cornerRadius: number): string {
-  const viewBox = extractViewBox(svgContent);
-  const rectElement = viewBox
-    ? buildInsetRectFromViewBox(viewBox, color, cornerRadius)
-    : buildInsetRectWithPercent(color, cornerRadius);
-  const rectPattern = new RegExp(`<rect[^>]*${INACTIVE_BACKGROUND_MARKER}[^>]*/>`, "i");
-
-  if (rectPattern.test(svgContent)) {
-    return svgContent.replace(rectPattern, rectElement);
-  }
-
-  const svgOpenTagMatch = svgContent.match(/<svg[^>]*>/i);
-  if (!svgOpenTagMatch) {
-    throw new Error("Input file is not a valid SVG document.");
-  }
-
-  const [svgOpenTag] = svgOpenTagMatch;
-  const replacement = `${svgOpenTag}\n  ${rectElement}`;
-  return svgContent.replace(svgOpenTag, replacement);
-}
-
-interface ViewBoxValues {
-  minX: number;
-  minY: number;
-  width: number;
-  height: number;
-}
-
-function extractViewBox(svgContent: string): ViewBoxValues | undefined {
-  const match = svgContent.match(/viewBox="([^"]+)"/i);
-  if (!match) {
-    return undefined;
-  }
-
-  const parts = match[1].trim().split(/\s+/);
-  if (parts.length !== 4) {
-    return undefined;
-  }
-
-  const [minXRaw, minYRaw, widthRaw, heightRaw] = parts.map(Number);
-  if ([minXRaw, minYRaw, widthRaw, heightRaw].some((value) => Number.isNaN(value))) {
-    return undefined;
-  }
-
-  return { minX: minXRaw, minY: minYRaw, width: widthRaw, height: heightRaw };
-}
-
-function buildInsetRectFromViewBox(viewBox: ViewBoxValues, color: string, cornerRadius: number): string {
-  const insetRatio = clampRatio(INACTIVE_BACKGROUND_INSET_RATIO);
-  const newWidth = viewBox.width * (1 - insetRatio);
-  const newHeight = viewBox.height * (1 - insetRatio);
-  const offsetX = viewBox.minX + (viewBox.width - newWidth) / 2;
-  const offsetY = viewBox.minY + (viewBox.height - newHeight) / 2;
-
-  return `<rect ${INACTIVE_BACKGROUND_MARKER} x="${formatNumber(offsetX)}" y="${formatNumber(offsetY)}" width="${formatNumber(newWidth)}" height="${formatNumber(newHeight)}" rx="${cornerRadius}" ry="${cornerRadius}" fill="${color}"/>`;
-}
-
-function buildInsetRectWithPercent(color: string, cornerRadius: number): string {
-  const insetRatio = clampRatio(INACTIVE_BACKGROUND_INSET_RATIO);
-  const insetPercent = ((insetRatio * 100) / 2).toFixed(2);
-  const sizePercent = (100 - insetRatio * 100).toFixed(2);
-
-  return `<rect ${INACTIVE_BACKGROUND_MARKER} x="${insetPercent}%" y="${insetPercent}%" width="${sizePercent}%" height="${sizePercent}%" rx="${cornerRadius}" ry="${cornerRadius}" fill="${color}"/>`;
-}
-
-function clampRatio(value: number): number {
-  if (value <= 0) {
-    return 0;
-  }
-  if (value >= 0.9) {
-    return 0.9;
-  }
-  return value;
-}
-
-function formatNumber(value: number): string {
-  if (Number.isInteger(value)) {
-    return value.toString();
-  }
-  return value.toFixed(4).replace(/0+$/g, "").replace(/\.$/, "");
 }
 
 void main();

@@ -37,6 +37,16 @@ export function createInactiveBackgroundColor(color: string, mixRatio: number): 
   return formatHexColor(bgRgb, false);
 }
 
+export function clampRatio(value: number): number {
+  if (value <= 0) {
+    return 0;
+  }
+  if (value >= 0.9) {
+    return 0.9;
+  }
+  return value;
+}
+
 function parseHexColor(hex: string): Rgba {
   const normalized = hex.trim().replace(/^#/, "");
 
@@ -92,10 +102,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function clampChannel(value: number): number {
-  return Math.min(Math.max(value, 0), 255);
-}
-
 interface Hsla {
   h: number;
   s: number;
@@ -139,7 +145,7 @@ function hslToRgb(color: Hsla): Rgba {
   const l = clamp01(color.l);
 
   if (s === 0) {
-    const gray = clampChannel(Math.round(l * 255));
+    const gray = Math.round(l * 255);
     return { r: gray, g: gray, b: gray, a: color.a };
   }
 
@@ -175,4 +181,8 @@ function hueToRgb(p: number, q: number, t: number): number {
 
 function clamp01(value: number): number {
   return clamp(value, 0, 1);
+}
+
+function clampChannel(value: number): number {
+  return Math.min(Math.max(value, 0), 255);
 }
