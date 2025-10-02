@@ -40,6 +40,22 @@ body {
   gap: 8px;
 }
 
+.toggle-field {
+  flex-direction: row;
+}
+
+.toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
 .color-field {
   flex-direction: row;
   align-items: center;
@@ -119,6 +135,11 @@ body {
 .download-button:hover,
 .download-button:focus {
   background: #ff4040;
+}
+
+input[type="range"][disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 @media (prefers-color-scheme: dark) {
