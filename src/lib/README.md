@@ -52,6 +52,12 @@ for (const variant of variants) {
 }
 ```
 
+## 関連 UI
+
+GitHub Pages 上で React UI を動かしています。ライブラリの挙動をブラウザから確認したい場合に利用できます。
+
+- https://tkhashi.github.io/vivaldi-icon-maker/
+
 ## サポートユーティリティ
 
 - `svgColorizer.ts` – `recolorVivaldiSvg` と `validateColorInput`

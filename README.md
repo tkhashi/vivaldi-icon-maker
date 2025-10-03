@@ -10,7 +10,11 @@ Vivaldi の SVG アイコンを着色・非活性化するためのツールキ�
 - `dist/` – `npm run build` 後に生成される JavaScript バンドル
 - `output/` – CLI 実行時の出力先（生成物は Git 管理対象外）
 
-公開中の UI プレビュー: [https://tkhashi.github.io/vivaldi-icon-maker/](https://tkhashi.github.io/vivaldi-icon-maker/)
+## UI プレビュー
+
+GitHub Pages 上で React UI を利用できます:
+
+- https://tkhashi.github.io/vivaldi-icon-maker/
 
 ## セットアップ
 
